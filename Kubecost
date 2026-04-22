@@ -1,0 +1,15 @@
+# Helm se seedha install — sab kuch default
+helm repo add kubecost https://kubecost.github.io/cost-analyzer/
+helm repo update
+
+helm install kubecost kubecost/cost-analyzer \
+  --namespace kubecost \
+  --create-namespace \
+  --set kubecostToken="aGVsbUBrdWJlY29zdC5jb20=xm343yadf98" \
+  --set networkCosts.enabled=false \
+  --set prometheus.server.persistentVolume.enabled=false \
+  --set persistentVolume.enabled=false
+
+# OpenShift Route expose karo
+oc expose svc/kubecost-cost-analyzer -n kubecost --port=9090
+oc get route -n kubecost  # URL note karo
