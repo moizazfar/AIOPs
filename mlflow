@@ -33,3 +33,170 @@ oc get svc mlflow -n mlflow-demo -o yaml | grep -A5 "ports:"
 oc patch route mlflow -n mlflow-demo \
   --type=json \
   -p='[{"op":"replace","path":"/spec/port/targetPort","value":"http"}]'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# mlflow-values.yaml
+
+# ── Backend: PostgreSQL ──────────────────────────────────────────────
+backendStore:
+  databaseMigration: true
+  databaseConnectionCheck: true
+  postgres:
+    enabled: true
+    # Secret se values lena - env vars ke zariye
+    host: ""      # neeche extraEnv se override hoga
+    port: 5432
+    database: ""
+    user: ""
+    password: ""
+
+# ── Artifact Store: MinIO ────────────────────────────────────────────
+artifactRoot:
+  proxiedArtifactStorage: false
+  s3:
+    enabled: true
+    bucket: mlflow-artifacts
+    awsAccessKeyId: ""      # neeche extraEnv se aayega
+    awsSecretAccessKey: ""  # neeche extraEnv se aayega
+    s3EndpointUrl: "http://minio.mlflow-demo.svc.cluster.local:9000"
+
+# ── Auth ──────────────────────────────────────────────────────────────
+auth:
+  enabled: true
+  adminUsername: ""   # secret se aayega
+  adminPassword: ""   # secret se aayega
+
+# ── Extra Environment Variables (Secrets se inject karo) ─────────────
+extraEnvVars:
+  # PostgreSQL
+  - name: MLFLOW_BACKEND_STORE_URI
+    value: ""   # neeche valueFrom se override
+  - name: PG_HOST
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-postgres-secret
+        key: host
+  - name: PG_PORT
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-postgres-secret
+        key: port
+  - name: PG_DB
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-postgres-secret
+        key: database
+  - name: PG_USER
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-postgres-secret
+        key: username
+  - name: PG_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-postgres-secret
+        key: password
+  # MinIO / S3
+  - name: AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-minio-secret
+        key: rootUser
+  - name: AWS_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-minio-secret
+        key: rootPassword
+  - name: MLFLOW_S3_ENDPOINT_URL
+    value: "http://minio.mlflow-demo.svc.cluster.local:9000"
+  - name: MLFLOW_S3_IGNORE_TLS
+    value: "true"
+  # Auth
+  - name: MLFLOW_TRACKING_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-auth-secret
+        key: adminUsername
+  - name: MLFLOW_TRACKING_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-auth-secret
+        key: adminPassword
+
+# ── OpenShift SCC Compatibility ───────────────────────────────────────
+podSecurityContext:
+  enabled: false
+
+containerSecurityContext:
+  enabled: false
+
+# ── Service ──────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 5000
+
+# ── Ingress off (OpenShift Route use karenge) ────────────────────────
+ingress:
+  enabled: false
+
+# ── Resources ────────────────────────────────────────────────────────
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+# ── Autoscaling ──────────────────────────────────────────────────────
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+# ── Probes ───────────────────────────────────────────────────────────
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 20
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 10
+
+# ── Monitoring ───────────────────────────────────────────────────────
+serviceMonitor:
+  enabled: false   # agar Prometheus Operator hai toh true karo
