@@ -1,0 +1,35 @@
+# Error detail dekho
+oc get route mlflow -n mlflow-demo -o yaml
+
+# Kya error aa rha hai exactly?
+curl -v https://<route-url> 2>&1 | head -50
+Lekin common causes yeh hain:
+Case A — Route ka host galat set hai
+bash# Current route dekho
+oc get route mlflow -n mlflow-demo
+
+# Agar host field empty ya wrong hai, patch karo:
+oc patch route mlflow -n mlflow-demo \
+  -p '{"spec":{"host":""}}'
+# Empty karne se OpenShift automatically wildcard domain assign karta hai
+Case B — Route TLS setting mismatch
+bash# Route delete karke fresh banao
+oc delete route mlflow -n mlflow-demo
+
+# Naya TLS route banao (OpenShift automatic domain se)
+oc create route edge mlflow \
+  --service=mlflow \
+  --port=5000 \
+  --insecure-policy=Redirect \
+  --namespace=mlflow-demo
+
+# URL dekho
+oc get route mlflow -n mlflow-demo -o jsonpath='{.spec.host}'
+Case C — Service port mismatch
+bash# Service ka actual port check karo
+oc get svc mlflow -n mlflow-demo -o yaml | grep -A5 "ports:"
+
+# Agar port 5000 nahin hai toh route update karo
+oc patch route mlflow -n mlflow-demo \
+  --type=json \
+  -p='[{"op":"replace","path":"/spec/port/targetPort","value":"http"}]'
